@@ -77,8 +77,8 @@ async def generate_image(request: Request):
       sampleImageUrl?: string | [string, ...]
     }
 
-    If `sampleImageUrl` is provided, we download each URL and call openai.images.edit(...)
-    with model="gpt-image-1", passing the list of file-like objects plus the prompt.
+    If `sampleImageUrl` is provided, we download each URL and call openai.images.edit(...) for each image
+    with model="gpt-image-1", passing the file-like object plus the prompt.
 
     Otherwise, we fall back to openai.images.generate(...) as before.
     Returns JSON {"images": [<base64-string>, ...]}.
@@ -88,14 +88,15 @@ async def generate_image(request: Request):
     if not prompt:
         raise HTTPException(400, "Missing 'prompt'")
 
-    sample = body.get("sampleImageUrl")
+    sample = body.get("sampleImageUrls")
+    print(sample)
 
-    # ----------- Branch A: sampleImageUrl provided → use images.edit() -----------
+    # ----------- Branch A: sampleImageUrls provided → use images.edit() for all at once  -----------
     if sample:
-        # Normalize to list of URLs
+        # Normalize to a list of URLs
         urls = [sample] if isinstance(sample, str) else sample
         if not (isinstance(urls, list) and all(isinstance(u, str) for u in urls)):
-            raise HTTPException(400, "`sampleImageUrl` must be a string or list of strings")
+            raise HTTPException(400, "`sampleImageUrls` must be a string or list of strings")
 
         # Download each URL into a BytesIO file-like object
         file_objs = []
@@ -103,28 +104,29 @@ async def generate_image(request: Request):
             file_obj = _download_image_as_fileobj(url)
             file_objs.append(file_obj)
 
-        # Call the Image Edit endpoint with all reference images
+        # Call images.edit once with the list of file-like objects
         try:
             resp = openai.images.edit(
                 model="gpt-image-1",
-                image=file_objs,     # list of file-like objects
+                image=file_objs,
                 prompt=prompt,
             )
         except Exception as e:
             raise HTTPException(502, f"OpenAI Images Edit API error: {e}")
 
-        # Extract base64 outputs
-        images = []
+        # Extract base64 outputs from this single edit call
+        all_images = []
         for item in getattr(resp, "data", []):
             b64 = getattr(item, "b64_json", None)
             if b64:
-                images.append(b64)
+                all_images.append(b64)
 
-        if not images:
+        if not all_images:
             raise HTTPException(500, "OpenAI Images Edit API returned no images")
-        return JSONResponse({"images": images})
 
-    # ----------- Branch B: no sampleImageUrl → use images.generate() -----------
+        return JSONResponse({"images": all_images})
+
+    # ----------- Branch B: no sampleImageUrls → use images.generate() -----------
     try:
         resp = openai.images.generate(
             model="gpt-image-1",
@@ -147,7 +149,6 @@ async def generate_image(request: Request):
     if not images:
         raise HTTPException(500, "OpenAI Images API returned no data")
     return JSONResponse({"images": images})
-
 @app.post("/images/generate/stream")
 async def generate_image_stream(request: Request) -> StreamingResponse:
     """
