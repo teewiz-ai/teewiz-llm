@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FastAPI Lambda for TeeWiz (local .env version)
+
+Globals:
+  Function:
+    Timeout: 60
+    Runtime: python3.12
+    Architectures: [x86_64]
+
+Resources:
+  FastApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: teewiz-fastapi
+      Handler: app.handler
+      CodeUri: app/
+      MemorySize: 1024
+      Environment:
+        Variables:
+          OPENAI_API_KEY: !Ref OpenAiApiKey
+      Events:
+        Api:
+          Type: HttpApi
+          Properties:
+            Path: /images/{proxy+}
+            Method: ANY
+
+Parameters:
+  OpenAiApiKey:
+    Type: String
+    Description: Your OpenAI API key
+
+Outputs:
+  ApiUrl:
+    Description: "HTTP API endpoint URL"
+    Value: !Sub "https://${ServerlessHttpApi}.execute-api.${AWS::Region}.amazonaws.com"

@@ -10,7 +10,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from mangum import Mangum
 from openai import OpenAI
 
+from dotenv import load_dotenv
+load_dotenv()
+
 openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
 
 app = FastAPI()
 app.add_middleware(
