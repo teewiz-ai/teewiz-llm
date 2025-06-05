@@ -89,7 +89,6 @@ async def generate_image(request: Request):
         raise HTTPException(400, "Missing 'prompt'")
 
     sample = body.get("sampleImageUrls")
-    print(sample)
 
     # ----------- Branch A: sampleImageUrls provided → use images.edit() for all at once  -----------
     if sample:
@@ -110,6 +109,8 @@ async def generate_image(request: Request):
                 model="gpt-image-1",
                 image=file_objs,
                 prompt=prompt,
+                background=body.get("background"),
+                quality=body.get("quality"),
             )
         except Exception as e:
             raise HTTPException(502, f"OpenAI Images Edit API error: {e}")
